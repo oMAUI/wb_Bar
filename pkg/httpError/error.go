@@ -1,4 +1,4 @@
-package Router
+package httpError
 
 import (
 	"encoding/json"
@@ -11,7 +11,7 @@ type CustomError struct {
 	Message string `json:"message"`
 }
 
-func HttpError(w http.ResponseWriter, err error, msgForLogger string, msgForResponse string, code int) {
+func Json(w http.ResponseWriter, err error, msgForLogger string, msgForResponse string, code int) {
 	w.Header().Set("Content-Type", "application/json")
 	ce := CustomError{
 		Message: msgForResponse,

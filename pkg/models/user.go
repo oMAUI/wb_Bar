@@ -1,4 +1,4 @@
-package Models
+package models
 
 import (
 	"context"
@@ -21,8 +21,8 @@ type (
 	}
 
 	UserAuthData struct {
-		Login    string `json:"login,omitempty"`
-		Password string `json:"password,omitempty"`
+		Login    string `json:"login"`
+		Password string `json:"password"`
 		Role     Role   `json:"role"`
 	}
 
@@ -49,11 +49,7 @@ func UserFromCtx(ctx context.Context) UserAuthData {
 	return ctx.Value(CtxKey()).(UserAuthData)
 }
 
-func CheckRole(has Role, need Role) bool {
-	return false
-}
-
-func (u *UserWithClaims) ToUserAuthData() UserAuthData {
+func (u *UserWithClaims) UserAuthData() UserAuthData {
 	return UserAuthData{
 		Login: u.Login,
 		Role:  u.Role,
@@ -68,7 +64,7 @@ func (u *UserWithClaims) SetRole() {
 	}
 }
 
-func (u *UserWithClaims) GetToken() ([]byte, error) {
+func (u *UserWithClaims) Token() ([]byte, error) {
 	tokenWithClaims := jwt.NewWithClaims(jwt.SigningMethodHS256, UserWithClaims{
 		Role:           u.Role,
 		Login:          u.Login,

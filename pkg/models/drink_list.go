@@ -1,4 +1,4 @@
-package Models
+package models
 
 import "errors"
 
@@ -29,12 +29,12 @@ func (dl *DrinkList) NewDrink(drink Drink) {
 	dl.list[drink.Name] = drink
 }
 
-func (dl *DrinkList) GetDrink(name string) Drink {
+func (dl *DrinkList) Drink(name string) Drink {
 	val, _ := dl.list[name]
 	return val
 }
 
-func (dl *DrinkList) GetDrinkList() map[string]Drink {
+func (dl *DrinkList) DrinkList() map[string]Drink {
 	return dl.list
 }
 

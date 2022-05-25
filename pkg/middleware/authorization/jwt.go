@@ -1,4 +1,4 @@
-package Middleware
+package authorization
 
 import (
 	"context"
@@ -6,10 +6,10 @@ import (
 	"github.com/golang-jwt/jwt"
 	"net/http"
 	"strings"
-	"wb_Bar/Models"
+	"wb_Bar/pkg/models"
 )
 
-func JwtAuthorization() func(next http.Handler) http.Handler {
+func Jwt() func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			bearer := r.Header.Get("Authorization")
@@ -20,8 +20,8 @@ func JwtAuthorization() func(next http.Handler) http.Handler {
 				return
 			}
 
-			token, errParseToken := jwt.ParseWithClaims(s[1], &Models.UserWithClaims{}, func(t *jwt.Token) (interface{}, error) {
-				return []byte(Models.SigningKey), nil
+			token, errParseToken := jwt.ParseWithClaims(s[1], &models.UserWithClaims{}, func(t *jwt.Token) (interface{}, error) {
+				return []byte(models.SigningKey), nil
 			})
 			if errParseToken != nil {
 				fmt.Println("parse token failed: ", errParseToken)
@@ -35,14 +35,14 @@ func JwtAuthorization() func(next http.Handler) http.Handler {
 				return
 			}
 
-			claims, ok := token.Claims.(*Models.UserWithClaims)
+			claims, ok := token.Claims.(*models.UserWithClaims)
 			if !ok {
 				fmt.Println("claims: ", ok)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 
-			r = r.WithContext(context.WithValue(r.Context(), Models.CtxKey(), claims.ToUserAuthData()))
+			r = r.WithContext(context.WithValue(r.Context(), models.CtxKey(), claims.UserAuthData()))
 			next.ServeHTTP(w, r)
 		})
 	}

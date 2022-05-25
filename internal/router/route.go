@@ -1,4 +1,4 @@
-package Router
+package router
 
 import (
 	"context"
@@ -12,21 +12,22 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	jwtAuth "wb_Bar/Middleware"
-	"wb_Bar/Models"
+	"wb_Bar/pkg/httpError"
+	jwtAuth "wb_Bar/pkg/middleware/authorization"
+	"wb_Bar/pkg/models"
 )
 
 type IDataBase interface {
-	CreateUser(context.Context, Models.UserAuthData) (Models.UserWithClaims, error)
-	Login(context.Context, Models.UserAuthData) (Models.UserWithClaims, error)
-	GetVisitor(context.Context, Models.UserAuthData) (Models.Visitor, error)
-	UpdateVisitor(context.Context, Models.Visitor) (Models.Visitor, error)
-	CreateDrink(context.Context, Models.Drink) error
-	GetDrinkList(context.Context) (Models.DrinkList, error)
+	CreateUser(context.Context, models.UserAuthData) (models.UserWithClaims, error)
+	Login(context.Context, models.UserAuthData) (models.UserWithClaims, error)
+	GetVisitor(context.Context, models.UserAuthData) (models.Visitor, error)
+	UpdateVisitor(context.Context, models.Visitor) (models.Visitor, error)
+	CreateDrink(context.Context, models.Drink) error
+	GetDrinkList(context.Context) (models.DrinkList, error)
 }
 
 var (
-	drinkList       Models.DrinkList
+	drinkList       models.DrinkList
 	errGetDrinkList error
 )
 
@@ -41,30 +42,30 @@ func Route(db IDataBase) *chi.Mux {
 	}
 
 	router.Group(func(authRouter chi.Router) {
-		authRouter.Use(jwtAuth.JwtAuthorization())
+		authRouter.Use(jwtAuth.Jwt())
 
 		authRouter.Get("/me", func(w http.ResponseWriter, r *http.Request) {
-			userCtx := Models.UserFromCtx(r.Context())
-			if userCtx.Role != Models.VisitorRole {
+			userCtx := models.UserFromCtx(r.Context())
+			if userCtx.Role != models.VisitorRole {
 				fmt.Println(userCtx.Login, userCtx.Role)
-				HttpError(w, Models.ErrUnauthorized, "",
+				httpError.Json(w, models.ErrUnauthorized, "",
 					"unauthorized", http.StatusUnauthorized)
 				return
 			}
 
 			visitor, errGet := db.GetVisitor(r.Context(), userCtx)
 			if errGet != nil {
-				HttpError(w, errGet, "", "server error", http.StatusInternalServerError)
+				httpError.Json(w, errGet, "", "server error", http.StatusInternalServerError)
 				return
 			} else if !visitor.IsAlive {
-				HttpError(w, Models.ErrDead, "", "you died", http.StatusUnauthorized)
+				httpError.Json(w, models.ErrDead, "", "you died", http.StatusUnauthorized)
 				return
 			}
 
 			visitor.UpdatePpm()
 			updatedVisitor, errUpdate := db.UpdateVisitor(r.Context(), visitor)
 			if errUpdate != nil {
-				HttpError(w, errUpdate, "update visitor",
+				httpError.Json(w, errUpdate, "update visitor",
 					"server error", http.StatusBadRequest)
 				return
 			}
@@ -76,40 +77,40 @@ func Route(db IDataBase) *chi.Mux {
 		})
 
 		authRouter.Patch("/buy", func(w http.ResponseWriter, r *http.Request) {
-			userCtx := Models.UserFromCtx(r.Context())
-			if userCtx.Role != Models.VisitorRole {
-				HttpError(w, Models.ErrUnauthorized, "unauthorized",
+			userCtx := models.UserFromCtx(r.Context())
+			if userCtx.Role != models.VisitorRole {
+				httpError.Json(w, models.ErrUnauthorized, "unauthorized",
 					"unauthorized", http.StatusUnauthorized)
 				return
 			}
 			visitor, errGet := db.GetVisitor(r.Context(), userCtx)
 			if errGet != nil {
-				HttpError(w, errGet, "get visitor", "server error", http.StatusInternalServerError)
+				httpError.Json(w, errGet, "get visitor", "server error", http.StatusInternalServerError)
 				return
 			}
 
 			drinkName := r.URL.Query().Get("name")
 			if ok := drinkList.DrinkContain(drinkName); !ok {
-				HttpError(w, Models.ErrUnauthorized, "",
+				httpError.Json(w, models.ErrUnauthorized, "",
 					"drink not found", http.StatusBadRequest)
 				return
 			}
 
-			drink := drinkList.GetDrink(drinkName)
+			drink := drinkList.Drink(drinkName)
 			errBuy := visitor.BuyDrink(drink)
 			if errBuy != nil {
-				if errors.Is(errBuy, Models.ErrNoMoney) {
-					HttpError(w, errBuy, "",
+				if errors.Is(errBuy, models.ErrNoMoney) {
+					httpError.Json(w, errBuy, "",
 						"no money", http.StatusBadRequest)
 					return
 				}
-				if errors.Is(errBuy, Models.ErrDead) {
+				if errors.Is(errBuy, models.ErrDead) {
 					if _, errUpdate := db.UpdateVisitor(r.Context(), visitor); errUpdate != nil {
-						HttpError(w, errUpdate, "update visitor",
+						httpError.Json(w, errUpdate, "update visitor",
 							"server error", http.StatusInternalServerError)
 						return
 					}
-					HttpError(w, errBuy, "",
+					httpError.Json(w, errBuy, "",
 						"you dead", http.StatusUnauthorized)
 					return
 				}
@@ -117,7 +118,7 @@ func Route(db IDataBase) *chi.Mux {
 
 			updatedVisitor, errUpdate := db.UpdateVisitor(r.Context(), visitor)
 			if errUpdate != nil {
-				HttpError(w, errUpdate, "update visitor",
+				httpError.Json(w, errUpdate, "update visitor",
 					"server error", http.StatusInternalServerError)
 				return
 			}
@@ -130,66 +131,66 @@ func Route(db IDataBase) *chi.Mux {
 		authRouter.Post("/create", func(w http.ResponseWriter, r *http.Request) {
 			defer r.Body.Close()
 
-			userCtx := Models.UserFromCtx(r.Context())
-			if userCtx.Role != Models.BarmanRole {
-				HttpError(w, Models.ErrUnauthorized, "",
+			userCtx := models.UserFromCtx(r.Context())
+			if userCtx.Role != models.BarmanRole {
+				httpError.Json(w, models.ErrUnauthorized, "",
 					"unauthorized", http.StatusUnauthorized)
 				return
 			}
 
-			var drink Models.Drink
+			var drink models.Drink
 			if errUnmarshalBody := UnmarshalBody(r.Body, &drink); errUnmarshalBody != nil {
-				HttpError(w, errUnmarshalBody, "",
+				httpError.Json(w, errUnmarshalBody, "",
 					"bad request", http.StatusBadRequest)
 				return
 			}
 
-			barman := Models.Barman{
+			barman := models.Barman{
 				DrinkList: &drinkList,
 			}
 			if ok := barman.DrinkList.DrinkContain(drink.Name); ok {
-				HttpError(w, Models.ErrDrinkAlreadyExist, "",
+				httpError.Json(w, models.ErrDrinkAlreadyExist, "",
 					"drink already exist", http.StatusBadRequest)
 				return
 			}
 
 			if errCreate := db.CreateDrink(r.Context(), drink); errCreate != nil {
-				HttpError(w, errCreate, "",
+				httpError.Json(w, errCreate, "",
 					"server error", http.StatusInternalServerError)
 				return
 			}
 			barman.CreateDrink(drink)
 
-			drinkListJ, _ := json.Marshal(drinkList.GetDrinkList())
+			drinkListJ, _ := json.Marshal(drinkList.DrinkList())
 
 			w.Header().Set("Content-Type", "application/json")
 			w.Write(drinkListJ)
 		})
 
 		authRouter.Get("/list", func(w http.ResponseWriter, r *http.Request) {
-			userCtx := Models.UserFromCtx(r.Context())
-			if userCtx.Role != Models.BarmanRole && userCtx.Role != Models.VisitorRole {
-				HttpError(w, Models.ErrUnauthorized, "",
+			userCtx := models.UserFromCtx(r.Context())
+			if userCtx.Role != models.BarmanRole && userCtx.Role != models.VisitorRole {
+				httpError.Json(w, models.ErrUnauthorized, "",
 					"unauthorized", http.StatusUnauthorized)
 				return
 			}
 
 			var respJ []byte
 			switch userCtx.Role {
-			case Models.BarmanRole:
-				barman := Models.Barman{}
-				list := barman.GetDrinkLIst(drinkList)
+			case models.BarmanRole:
+				barman := models.Barman{}
+				list := barman.DrinkLIst(drinkList)
 
 				respJ, _ = json.Marshal(list)
 				break
-			case Models.VisitorRole:
+			case models.VisitorRole:
 				visitor, errGet := db.GetVisitor(r.Context(), userCtx)
 				if errGet != nil {
-					HttpError(w, errGet, "get visitor",
+					httpError.Json(w, errGet, "get visitor",
 						"server error", http.StatusInternalServerError)
 					return
 				} else if !visitor.IsAlive {
-					HttpError(w, Models.ErrDead, "",
+					httpError.Json(w, models.ErrDead, "",
 						"you died", http.StatusUnauthorized)
 					return
 				}
@@ -206,25 +207,25 @@ func Route(db IDataBase) *chi.Mux {
 
 	router.Post("/register", func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
-		var userAuthData Models.UserAuthData
+		var userAuthData models.UserAuthData
 
 		if errUnmarshalBody := UnmarshalBody(r.Body, &userAuthData); errUnmarshalBody != nil {
-			HttpError(w, errUnmarshalBody, "",
+			httpError.Json(w, errUnmarshalBody, "",
 				"bad request", http.StatusBadRequest)
 			return
 		}
 
 		user, errCreate := db.CreateUser(context.Background(), userAuthData)
 		if errCreate != nil {
-			HttpError(w, errCreate, "",
+			httpError.Json(w, errCreate, "",
 				"server error", http.StatusInternalServerError)
 			return
 		}
 
 		user.SetRole()
-		token, errGetToken := user.GetToken()
+		token, errGetToken := user.Token()
 		if errGetToken != nil {
-			HttpError(w, errGetToken, "",
+			httpError.Json(w, errGetToken, "",
 				"server error", http.StatusInternalServerError)
 			return
 		}
@@ -234,10 +235,10 @@ func Route(db IDataBase) *chi.Mux {
 	})
 	router.Get("/login", func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
-		var userAuthData Models.UserAuthData
+		var userAuthData models.UserAuthData
 
 		if errUnmarshalBody := UnmarshalBody(r.Body, &userAuthData); errUnmarshalBody != nil {
-			HttpError(w, errUnmarshalBody, "",
+			httpError.Json(w, errUnmarshalBody, "",
 				"bad request", http.StatusBadRequest)
 			return
 		}
@@ -245,20 +246,20 @@ func Route(db IDataBase) *chi.Mux {
 		user, errGetUser := db.Login(context.Background(), userAuthData)
 		if errGetUser != nil {
 			if errors.Is(errGetUser, sql.ErrNoRows) {
-				HttpError(w, errGetUser, "",
+				httpError.Json(w, errGetUser, "",
 					"bad request", http.StatusBadRequest)
 				return
 			} else {
-				HttpError(w, errGetUser, "",
+				httpError.Json(w, errGetUser, "",
 					"server error", http.StatusInternalServerError)
 				return
 			}
 		}
 
 		user.SetRole()
-		token, errGetToken := user.GetToken()
+		token, errGetToken := user.Token()
 		if errGetToken != nil {
-			HttpError(w, errGetUser, "",
+			httpError.Json(w, errGetUser, "",
 				"server error", http.StatusInternalServerError)
 			return
 		}
@@ -273,7 +274,7 @@ func Route(db IDataBase) *chi.Mux {
 func UnmarshalBody(r io.Reader, v interface{}) error {
 	resp, errResp := ioutil.ReadAll(r)
 	if errResp != nil {
-		//ErrorPorcessing.HttpError(w, errResp, "failed to get body", "Bad Request", http.StatusBadRequest)
+		//ErrorPorcessing.Json(w, errResp, "failed to get body", "Bad Request", httpError.StatusBadRequest)
 		return fmt.Errorf("server error: %w", errResp)
 	}
 
