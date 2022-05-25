@@ -29,20 +29,20 @@ func (dl *DrinkList) NewDrink(drink Drink) {
 	dl.list[drink.Name] = drink
 }
 
-func (dl *DrinkList) Drink(name string) Drink {
+func (dl *DrinkList) Drink(name string) *Drink {
 	val, _ := dl.list[name]
-	return val
+	return &val
 }
 
 func (dl *DrinkList) DrinkList() map[string]Drink {
 	return dl.list
 }
 
-func (dl *DrinkList) containDrink(name string) (Drink, bool) {
+func (dl *DrinkList) containDrink(name string) (*Drink, bool) {
 	v, ok := dl.list[name]
 	if ok {
-		return v, ok
+		return &v, ok
 	}
 
-	return Drink{}, false
+	return &Drink{}, false
 }

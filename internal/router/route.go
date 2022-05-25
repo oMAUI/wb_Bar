@@ -18,16 +18,16 @@ import (
 )
 
 type IDataBase interface {
-	CreateUser(context.Context, models.UserAuthData) (models.UserWithClaims, error)
-	Login(context.Context, models.UserAuthData) (models.UserWithClaims, error)
-	GetVisitor(context.Context, models.UserAuthData) (models.Visitor, error)
-	UpdateVisitor(context.Context, models.Visitor) (models.Visitor, error)
+	CreateUser(context.Context, models.UserAuthData) (*models.UserWithClaims, error)
+	Login(context.Context, models.UserAuthData) (*models.UserWithClaims, error)
+	GetVisitor(context.Context, models.UserAuthData) (*models.Visitor, error)
+	UpdateVisitor(context.Context, models.Visitor) (*models.Visitor, error)
 	CreateDrink(context.Context, models.Drink) error
-	GetDrinkList(context.Context) (models.DrinkList, error)
+	GetDrinkList(context.Context) (*models.DrinkList, error)
 }
 
 var (
-	drinkList       models.DrinkList
+	drinkList       *models.DrinkList
 	errGetDrinkList error
 )
 
@@ -53,7 +53,7 @@ func Route(db IDataBase) *chi.Mux {
 				return
 			}
 
-			visitor, errGet := db.GetVisitor(r.Context(), userCtx)
+			visitor, errGet := db.GetVisitor(r.Context(), *userCtx)
 			if errGet != nil {
 				httpError.Json(w, errGet, "", "server error", http.StatusInternalServerError)
 				return
@@ -63,7 +63,7 @@ func Route(db IDataBase) *chi.Mux {
 			}
 
 			visitor.UpdatePpm()
-			updatedVisitor, errUpdate := db.UpdateVisitor(r.Context(), visitor)
+			updatedVisitor, errUpdate := db.UpdateVisitor(r.Context(), *visitor)
 			if errUpdate != nil {
 				httpError.Json(w, errUpdate, "update visitor",
 					"server error", http.StatusBadRequest)
@@ -83,7 +83,7 @@ func Route(db IDataBase) *chi.Mux {
 					"unauthorized", http.StatusUnauthorized)
 				return
 			}
-			visitor, errGet := db.GetVisitor(r.Context(), userCtx)
+			visitor, errGet := db.GetVisitor(r.Context(), *userCtx)
 			if errGet != nil {
 				httpError.Json(w, errGet, "get visitor", "server error", http.StatusInternalServerError)
 				return
@@ -97,7 +97,7 @@ func Route(db IDataBase) *chi.Mux {
 			}
 
 			drink := drinkList.Drink(drinkName)
-			errBuy := visitor.BuyDrink(drink)
+			errBuy := visitor.BuyDrink(*drink)
 			if errBuy != nil {
 				if errors.Is(errBuy, models.ErrNoMoney) {
 					httpError.Json(w, errBuy, "",
@@ -105,7 +105,7 @@ func Route(db IDataBase) *chi.Mux {
 					return
 				}
 				if errors.Is(errBuy, models.ErrDead) {
-					if _, errUpdate := db.UpdateVisitor(r.Context(), visitor); errUpdate != nil {
+					if _, errUpdate := db.UpdateVisitor(r.Context(), *visitor); errUpdate != nil {
 						httpError.Json(w, errUpdate, "update visitor",
 							"server error", http.StatusInternalServerError)
 						return
@@ -116,7 +116,7 @@ func Route(db IDataBase) *chi.Mux {
 				}
 			}
 
-			updatedVisitor, errUpdate := db.UpdateVisitor(r.Context(), visitor)
+			updatedVisitor, errUpdate := db.UpdateVisitor(r.Context(), *visitor)
 			if errUpdate != nil {
 				httpError.Json(w, errUpdate, "update visitor",
 					"server error", http.StatusInternalServerError)
@@ -146,7 +146,7 @@ func Route(db IDataBase) *chi.Mux {
 			}
 
 			barman := models.Barman{
-				DrinkList: &drinkList,
+				DrinkList: drinkList,
 			}
 			if ok := barman.DrinkList.DrinkContain(drink.Name); ok {
 				httpError.Json(w, models.ErrDrinkAlreadyExist, "",
@@ -179,12 +179,12 @@ func Route(db IDataBase) *chi.Mux {
 			switch userCtx.Role {
 			case models.BarmanRole:
 				barman := models.Barman{}
-				list := barman.DrinkLIst(drinkList)
+				list := barman.DrinkLIst(*drinkList)
 
 				respJ, _ = json.Marshal(list)
 				break
 			case models.VisitorRole:
-				visitor, errGet := db.GetVisitor(r.Context(), userCtx)
+				visitor, errGet := db.GetVisitor(r.Context(), *userCtx)
 				if errGet != nil {
 					httpError.Json(w, errGet, "get visitor",
 						"server error", http.StatusInternalServerError)
@@ -195,7 +195,7 @@ func Route(db IDataBase) *chi.Mux {
 					return
 				}
 
-				list := visitor.AvailableDrinkList(drinkList)
+				list := visitor.AvailableDrinkList(*drinkList)
 				respJ, _ = json.Marshal(list)
 				break
 			}

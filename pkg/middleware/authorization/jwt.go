@@ -42,7 +42,7 @@ func Jwt() func(next http.Handler) http.Handler {
 				return
 			}
 
-			r = r.WithContext(context.WithValue(r.Context(), models.CtxKey(), claims.UserAuthData()))
+			r = r.WithContext(context.WithValue(r.Context(), models.CtxKey(), *claims.UserAuthData()))
 			next.ServeHTTP(w, r)
 		})
 	}

@@ -45,12 +45,13 @@ func CtxKey() Key {
 	return Key{Key: "id"}
 }
 
-func UserFromCtx(ctx context.Context) UserAuthData {
-	return ctx.Value(CtxKey()).(UserAuthData)
+func UserFromCtx(ctx context.Context) *UserAuthData {
+	user := ctx.Value(CtxKey()).(UserAuthData)
+	return &user
 }
 
-func (u *UserWithClaims) UserAuthData() UserAuthData {
-	return UserAuthData{
+func (u *UserWithClaims) UserAuthData() *UserAuthData {
+	return &UserAuthData{
 		Login: u.Login,
 		Role:  u.Role,
 	}
