@@ -29,8 +29,8 @@ func (v *Visitor) UpdatePpm() {
 	}
 }
 
-func (v *Visitor) AvailableDrinkList(list DrinkList) []Drink {
-	var availableList []Drink
+func (v *Visitor) AvailableDrinkList(list DrinkList) []*Drink {
+	var availableList []*Drink
 	for _, val := range list.list {
 		if v.Money >= val.Price {
 			availableList = append(availableList, val)

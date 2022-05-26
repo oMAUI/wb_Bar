@@ -15,8 +15,8 @@ func (b *Barman) CreateDrink(drink Drink) {
 	b.DrinkList.NewDrink(newDrink)
 }
 
-func (b *Barman) DrinkLIst(drinkList DrinkList) []Drink {
-	var list []Drink
+func (b *Barman) DrinkLIst(drinkList DrinkList) []*Drink {
+	var list []*Drink
 	for _, val := range drinkList.list {
 		list = append(list, val)
 	}
